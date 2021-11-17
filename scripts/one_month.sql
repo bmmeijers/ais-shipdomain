@@ -120,7 +120,7 @@ WITH ordered_track AS
     select
         *
     from
-        martijn.ais_logs_dynamic_unique:SUFFIX
+        ais_logs_dynamic_unique:SUFFIX
     order by
         mmsi, ts
 )
@@ -389,7 +389,32 @@ select
     sqrt(
         pow(own_ship.speed / 10.0, 2) + pow(target_ship.speed / 10.0, 2)
         -2.0 * (own_ship.speed / 10.0) * (target_ship.speed / 10.0) * cos(radians(((own_ship.course) % 3600) / 10.) - radians(((target_ship.course) % 3600) / 10.))
-    ) as encounter__relative_velocity
+    ) as encounter__relative_velocity,
+
+    -- classification as found in paper
+    -- AIS-based Delineation and Interpretation of Ship Domain Models
+    CASE 
+        -- Head-on ΔCOG between 170 and 190 degree
+        WHEN
+            abs((own_ship.course / 10.0) - (target_ship.course / 10.0)) between 170.0 and 190.0
+        THEN
+            1
+
+        -- Overtaking ΔCOG< 67.5 or ΔCOG>292.5 degree
+        -- Yigit: <10|22.5|45 / >350|360-22.5|360-45 degree
+        WHEN 
+            abs((own_ship.course / 10.0) - (target_ship.course / 10.0)) <  67.5 OR
+            abs((own_ship.course / 10.0) - (target_ship.course / 10.0)) > 292.5
+        THEN
+            2
+
+        -- Crossing ΔCOG outside the range of the above cases
+        ELSE
+            3
+
+    END :: smallint
+    AS encounter__encounter_type
+
 
 from 
     ais_movement:SUFFIX own_ship
